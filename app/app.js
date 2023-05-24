@@ -97,6 +97,13 @@ app.use("/api/v1/orders", orderRouter);
 app.use("/api/v1/coupons", couponsRouter);
 app.use("/api/v1/images", imagesRouter);
 
+// visit the documentation first
+app.get("/", (req, res) => {
+  res.redirect("https://documenter.getpostman.com/view/23089695/2s93m6124N#intro");
+});
+
+
+
 // err middleware
 app.use(notFound);
 app.use(globalErrHandler);
