@@ -15,7 +15,7 @@ import isAdmin from "../middlewares/isAdmin.js";
 const productsRouter = express.Router();
 
 productsRouter.post("/", isLoggedIn,isAdmin, fileParser.array('files'), createSingleProductController, s3Uploader);
-productsRouter.get("/", isLoggedIn,  getAllProductsController);
+productsRouter.get("/", getAllProductsController);
 productsRouter.delete("/deleteall", isLoggedIn, isAdmin, deleteAllProductsController);
 productsRouter.get("/:id", getSingleProductController);
 productsRouter.put("/:id", isLoggedIn, isAdmin, updateSingleProductController);
