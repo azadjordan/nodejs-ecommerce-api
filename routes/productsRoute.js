@@ -9,7 +9,6 @@ import {
   deleteAllProductsController,
 } from "../controllers/productsController.js";
 import fileParser from '../middlewares/fileParser.js';
-import s3Uploader from '../middlewares/s3Uploader.js';
 import isAdmin from "../middlewares/isAdmin.js";
 
 const productsRouter = express.Router();

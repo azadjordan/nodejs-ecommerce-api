@@ -4,18 +4,12 @@ import Category from "../model/Category.js";
 import Brand from "../model/Brand.js";
 import Image from "../model/Image.js"
 import fs from 'fs';
-import AWS from "aws-sdk";
+import s3 from "../config/s3.js";
+import { uploadImagesToS3 } from '../utils/imageUploader.js';
 import dotenv from 'dotenv'
 dotenv.config()
 
 import { clearUploadDirectory } from '../utils/clearUploadDirectory.js';
-
-
-// Create an instance of the AWS.S3 class
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-});
 
 // @desc    Create new Product
 // @route   POST /api/v1/Products
@@ -55,43 +49,9 @@ export const createSingleProductController = asyncHandler(async (req, res, next)
 
   // Create the product with the uploaded images
   let product;
-  let imageUrls = [];
 
   try {
-    // Upload images to S3 bucket and create Image documents
-    if (req.files && req.files.length > 0) {
-      const uploadPromises = req.files.map((file) => {
-        const fileContent = fs.readFileSync(file.path);
-
-        const params = {
-          Bucket: process.env.AWS_BUCKET_NAME,
-          Key: file.filename,
-          Body: fileContent,
-          // Add any additional parameters or ACL settings as per your requirement
-        };
-
-        return s3.upload(params).promise();
-      });
-
-      const uploadResults = await Promise.all(uploadPromises);
-
-      // Create Image documents and add to images array
-      const createImagePromises = uploadResults.map((result) => {
-        const newImage = new Image({
-          key: result.Key,
-          bucket: result.Bucket,
-          location: result.Location,
-          etag: result.ETag,
-        });
-
-        // Add the image id and URL to the array
-        imageUrls.push({id: newImage._id, url: result.Location});
-
-        return newImage.save();
-      });
-
-      await Promise.all(createImagePromises);
-    }
+    const imageUrls = await uploadImagesToS3(req.files);
 
     product = await Product.create({
       name,
@@ -131,8 +91,6 @@ export const createSingleProductController = asyncHandler(async (req, res, next)
     product,
   });
 });
-
-
 
 // @desc    Get all Products
 // @route   GET /api/v1/products
