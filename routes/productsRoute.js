@@ -9,12 +9,12 @@ import {
   deleteAllProductsController,
 } from "../controllers/productsController.js";
 import fileParser from '../middlewares/fileParser.js';
-import s3Uploader from '../middlewares/s3Uloader.js';
+import s3Uploader from '../middlewares/s3Uploader.js';
 import isAdmin from "../middlewares/isAdmin.js";
 
 const productsRouter = express.Router();
 
-productsRouter.post("/", isLoggedIn,isAdmin, fileParser.array('files'), createSingleProductController, s3Uploader);
+productsRouter.post("/", isLoggedIn, isAdmin, fileParser.array('files'), createSingleProductController);
 productsRouter.get("/", getAllProductsController);
 productsRouter.delete("/deleteall", isLoggedIn, isAdmin, deleteAllProductsController);
 productsRouter.get("/:id", getSingleProductController);

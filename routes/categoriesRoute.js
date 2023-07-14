@@ -15,7 +15,7 @@ const categoriesRouter = express.Router();
 
 categoriesRouter.post("/", isLoggedIn, isAdmin, fileParser.single('file'), createSingleCategoryController);
 categoriesRouter.get("/", getAllCategoriesController);
-categoriesRouter.delete("/deleteall", isAdmin, isLoggedIn, deleteAllCategoriesController);
+categoriesRouter.delete("/deleteall", isLoggedIn, isAdmin, deleteAllCategoriesController);
 categoriesRouter.get("/:id", getSingleCategoryController);
 categoriesRouter.put("/:id", isLoggedIn, isAdmin, updateSingleCategoryController);
 categoriesRouter.delete("/:id", isLoggedIn, isAdmin, deleteSingleCategoryController);

@@ -8,6 +8,9 @@ import AWS from "aws-sdk";
 import dotenv from 'dotenv'
 dotenv.config()
 
+import { clearUploadDirectory } from '../utils/clearUploadDirectory.js';
+
+
 // Create an instance of the AWS.S3 class
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY,
@@ -17,89 +20,109 @@ const s3 = new AWS.S3({
 // @desc    Create new Product
 // @route   POST /api/v1/Products
 // @access  Private/Admin
-export const createSingleProductController = asyncHandler(async (req, res) => {
+export const createSingleProductController = asyncHandler(async (req, res, next) => {
   const { name, description, category, sizes, colors, price, totalQty, brand } = req.body;
 
   // Product exists?
   const productExists = await Product.findOne({ name });
   if (productExists) {
-    throw new Error("Product already exists");
+    clearUploadDirectory(req);
+    return res.status(400).json({
+      success: false,
+      message: "Product already exists",
+    });
   }
 
   // Find the Category
   const categoryFound = await Category.findOne({ name: category.toLowerCase() });
   if (!categoryFound) {
-    throw new Error("Category not found. Please create the category first or check the category name");
+    clearUploadDirectory(req);
+    return res.status(400).json({
+      success: false,
+      message: "Category not found. Please create the category first or check the category name",
+    });
   }
 
   // Find the Brand
   const brandFound = await Brand.findOne({ name: brand.toLowerCase() });
   if (!brandFound) {
-    throw new Error("Brand not found. Please create the brand first or check the brand name");
-  }
-
-  // Upload images to S3 bucket and create Image documents
-  let imageUrls = [];
-
-  if (req.files && req.files.length > 0) {
-    const uploadPromises = req.files.map((file) => {
-      const fileContent = fs.readFileSync(file.path);
-
-      const params = {
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: file.filename,
-        Body: fileContent,
-        // Add any additional parameters or ACL settings as per your requirement
-      };
-
-      return s3.upload(params).promise();
-    });
-
-    const uploadResults = await Promise.all(uploadPromises);
-
-    // Create Image documents and add to images array
-    const createImagePromises = uploadResults.map((result) => {
-      const newImage = new Image({
-        key: result.Key,
-        bucket: result.Bucket,
-        location: result.Location,
-        etag: result.ETag,
-      });
-      
-      // Add the image id and URL to the array
-      imageUrls.push({id: newImage._id, url: result.Location});
-
-      return newImage.save();
-    });
-
-    await Promise.all(createImagePromises);
-
-    req.files.forEach((file) => {
-      fs.unlinkSync(file.path); // Delete the files after successful upload
+    clearUploadDirectory(req);
+    return res.status(400).json({
+      success: false,
+      message: "Brand not found. Please create the brand first or check the brand name",
     });
   }
 
   // Create the product with the uploaded images
-  const product = await Product.create({
-    name,
-    description,
-    category: category.toLowerCase(),
-    sizes,
-    colors,
-    user: req.userAuthId,
-    price,
-    totalQty,
-    brand: brand.toLowerCase(),
-    images: imageUrls, // This now contains the objects of image ids and urls
-  });
+  let product;
+  let imageUrls = [];
 
-  // Push the product into Category
-  categoryFound.products.push(product._id);
-  await categoryFound.save();
+  try {
+    // Upload images to S3 bucket and create Image documents
+    if (req.files && req.files.length > 0) {
+      const uploadPromises = req.files.map((file) => {
+        const fileContent = fs.readFileSync(file.path);
 
-  // Push the product into Brand
-  brandFound.products.push(product._id);
-  await brandFound.save();
+        const params = {
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: file.filename,
+          Body: fileContent,
+          // Add any additional parameters or ACL settings as per your requirement
+        };
+
+        return s3.upload(params).promise();
+      });
+
+      const uploadResults = await Promise.all(uploadPromises);
+
+      // Create Image documents and add to images array
+      const createImagePromises = uploadResults.map((result) => {
+        const newImage = new Image({
+          key: result.Key,
+          bucket: result.Bucket,
+          location: result.Location,
+          etag: result.ETag,
+        });
+
+        // Add the image id and URL to the array
+        imageUrls.push({id: newImage._id, url: result.Location});
+
+        return newImage.save();
+      });
+
+      await Promise.all(createImagePromises);
+    }
+
+    product = await Product.create({
+      name,
+      description,
+      category: category.toLowerCase(),
+      sizes,
+      colors,
+      user: req.userAuthId,
+      price,
+      totalQty,
+      brand: brand.toLowerCase(),
+      images: imageUrls, // This now contains the objects of image ids and urls
+    });
+
+    // Push the product into Category
+    categoryFound.products.push(product._id);
+    await categoryFound.save();
+
+    // Push the product into Brand
+    brandFound.products.push(product._id);
+    await brandFound.save();
+
+  } catch (error) {
+    // If an error occurred while creating the product, clear the 'uploads' directory
+    clearUploadDirectory(req);
+    
+    return next(error);
+  }
+
+  // Clear the 'uploads' directory after successful upload
+  clearUploadDirectory(req);
 
   // Send response
   res.json({
@@ -108,6 +131,8 @@ export const createSingleProductController = asyncHandler(async (req, res) => {
     product,
   });
 });
+
+
 
 // @desc    Get all Products
 // @route   GET /api/v1/products

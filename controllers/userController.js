@@ -68,7 +68,7 @@ export const loginUserController = asyncHandler(async (req, res) => {
       status: "success",
       message: "User logged in successfully",
       userFound,
-      token: generateToken(userFound?._id),
+      token: generateToken(userFound?._id), // note that when we generate a token for a user, we pass the id (because the token is a mixture of it and other things)
     });
   } else {
     throw new Error(`Invalid credentials`);
@@ -106,6 +106,7 @@ export const getAllUsersController = asyncHandler(async (req, res) => {
   // If users are found, return them
   res.status(200).json({
     status: "success",
+    count: users.length,
     data: users,
   });
 });
