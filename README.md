@@ -1,1 +1,1 @@
-# nodejs-ecommerce-api
+# Nodejs ecommerce api
