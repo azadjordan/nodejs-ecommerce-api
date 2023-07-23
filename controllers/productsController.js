@@ -1,15 +1,14 @@
-import Product from "../model/Product.js";
-import asyncHandler from "express-async-handler";
-import Category from "../model/Category.js";
-import Brand from "../model/Brand.js";
+import Product from "../model/Product.js"
+import asyncHandler from "express-async-handler"
+import Category from "../model/Category.js"
+import Brand from "../model/Brand.js"
 import Image from "../model/Image.js"
-import fs from 'fs';
-import s3 from "../config/s3.js";
-import { uploadImagesToS3 } from '../utils/imageUploader.js';
+import s3 from "../config/s3.js"
+import { uploadImagesToS3 } from '../utils/imageUploader.js'
 import dotenv from 'dotenv'
 dotenv.config()
+import { clearUploadDirectory } from "../utils/clearUploadDirectory.js"
 
-import { clearUploadDirectory } from '../utils/clearUploadDirectory.js';
 
 // @desc    Create new Product
 // @route   POST /api/v1/Products
@@ -20,7 +19,7 @@ export const createSingleProductController = asyncHandler(async (req, res, next)
   // Product exists?
   const productExists = await Product.findOne({ name });
   if (productExists) {
-    clearUploadDirectory(req);
+    clearUploadDirectory(req)
     return res.status(400).json({
       success: false,
       message: "Product already exists",
@@ -30,7 +29,7 @@ export const createSingleProductController = asyncHandler(async (req, res, next)
   // Find the Category
   const categoryFound = await Category.findOne({ name: category.toLowerCase() });
   if (!categoryFound) {
-    clearUploadDirectory(req);
+    clearUploadDirectory(req)
     return res.status(400).json({
       success: false,
       message: "Category not found. Please create the category first or check the category name",
@@ -40,7 +39,7 @@ export const createSingleProductController = asyncHandler(async (req, res, next)
   // Find the Brand
   const brandFound = await Brand.findOne({ name: brand.toLowerCase() });
   if (!brandFound) {
-    clearUploadDirectory(req);
+    clearUploadDirectory(req)
     return res.status(400).json({
       success: false,
       message: "Brand not found. Please create the brand first or check the brand name",
@@ -51,7 +50,7 @@ export const createSingleProductController = asyncHandler(async (req, res, next)
   let product;
 
   try {
-    const imageUrls = await uploadImagesToS3(req.files);
+    const imageUrls = await uploadImagesToS3(req.files, req); // add request object
 
     product = await Product.create({
       name,
@@ -75,14 +74,8 @@ export const createSingleProductController = asyncHandler(async (req, res, next)
     await brandFound.save();
 
   } catch (error) {
-    // If an error occurred while creating the product, clear the 'uploads' directory
-    clearUploadDirectory(req);
-    
     return next(error);
   }
-
-  // Clear the 'uploads' directory after successful upload
-  clearUploadDirectory(req);
 
   // Send response
   res.json({
@@ -201,128 +194,27 @@ export const getSingleProductController = asyncHandler(async(req,res)=>{
     })
 })
 
-// @desc    Update a Product
-// @route   PUT /api/v1/products/:id/update
-// @access  Private/Admin
-export const updateSingleProductController = asyncHandler(async (req, res) => {
-  const {
-    name,
-    description,
-    category,
-    sizes,
-    colors,
-    user,
-    price,
-    totalQty,
-    brand,
-  } = req.body;
-
-  // Retrieve the product
-  const product = await Product.findById(req.params.id);
-
-  if (!product) {
-    res.status(404);
-    throw new Error('Product not found');
-  }
-
-  // If images are included in the request, handle image deletion and upload
-  if (req.files && req.files.length > 0) {
-    // Loop through each existing image, delete from S3 and MongoDB
-    for (const img of product.images) {
-      // Deleting from S3
-      const params = {
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: img.key,
-      };
-
-      try {
-        await s3.deleteObject(params).promise(); // Delete image from S3
-      } catch (error) {
-        res.status(500);
-        throw new Error('Failed to delete images from S3');
-      }
-
-      // Deleting from MongoDB
-      await Image.findByIdAndRemove(img.id);
-    }
-
-    // Upload new images to S3 and MongoDB
-    const uploadPromises = req.files.map((file) => {
-      const fileContent = fs.readFileSync(file.path);
-
-      const params = {
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: file.filename,
-        Body: fileContent,
-      };
-
-      return s3.upload(params).promise();
-    });
-
-    const uploadResults = await Promise.all(uploadPromises);
-
-    const createImagePromises = uploadResults.map((result) => {
-      const newImage = new Image({
-        key: result.Key,
-        bucket: result.Bucket,
-        location: result.Location,
-        etag: result.ETag,
-      });
-
-      return newImage.save();
-    });
-
-    const newImages = await Promise.all(createImagePromises);
-
-    // Create an array of the new images (with ID and URL)
-    product.images = newImages.map((img) => ({
-      id: img._id,
-      url: img.location,
-    }));
-
-    // Delete the temporary files
-    req.files.forEach((file) => {
-      fs.unlinkSync(file.path);
-    });
-  }
-
-  // Update product information
-  product.name = name;
-  product.description = description;
-  product.category = category;
-  product.sizes = sizes;
-  product.colors = colors;
-  product.user = user;
-  product.price = price;
-  product.totalQty = totalQty;
-  product.brand = brand;
-
-  // Save the updated product
-  const updatedProduct = await product.save();
-
-  res.json({
-    status: 'success',
-    message: 'Product updated successfully',
-    product: updatedProduct,
-  });
-});
-
-
-
-
 // @desc    Delete a single Product
-// @route   DELETE /api/v1/products/:id
+// @route   DELETE /api/v1/products/delete/:id
 // @access  Private/Admin
-export const deleteSingleProductController = asyncHandler(async(req,res)=>{
-  const product = await Product.findById(req.params.id)
-  
-  if(!product){
-      throw new Error ('Product not found!')
+export const deleteSingleProductController = asyncHandler(async(req, res, next)=>{
+  const productId = req.params.id;
+
+  // Fetch the product from the database
+  const product = await Product.findById(productId);
+  if (!product) {
+    return res.status(404).json({
+      success: false,
+      message: "Product not found",
+    });
   }
-  
+
+  // Extract image ids from the product
+  const imageIds = product.images.map((image) => image.id);
+
   // Fetch the Image documents from the database
   const images = await Image.find({
-      _id: { $in: product.images.map((image) => image.id) }
+      _id: { $in: imageIds }
   });
 
   // Deleting the images from the S3 bucket
@@ -344,15 +236,16 @@ export const deleteSingleProductController = asyncHandler(async(req,res)=>{
           _id: { $in: images.map((image) => image._id) }
       });
 
-      // Then, delete the Product from database using findByIdAndDelete
-      await Product.findByIdAndDelete(req.params.id);
+      // Then, delete the Product from the database
+      await Product.findByIdAndDelete(productId);
+
       res.json({
-          status: 'success',
+          success: true,
           message: 'Product and associated images deleted successfully'
       })
   } catch (err) {
       // An error occurred during the image deletion process, so throw an error
-      throw new Error("Unable to delete one or more images");
+      return next(err);
   }
 });
 
@@ -402,5 +295,48 @@ export const deleteAllProductsController = asyncHandler(async(req, res)=>{
   }
 });
 
+// @desc    Update product
+// @route   PUT /api/v1/products/:id
+// @access  Private/Admin
+export const updateSingleProductController = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id);
 
-  
+  if (product) {
+    // If there are new images
+    if (req.files) {
+      // Upload new images to S3
+      const newImageUrls = await uploadImagesToS3(req.files, req); // add request object
+
+      // Add new image urls to existing images
+      product.images = [...product.images, ...newImageUrls];
+    }
+
+    // Update the text fields
+    product.name = req.body.name || product.name;
+    product.description = req.body.description || product.description;
+    product.category = req.body.category || product.category;
+    product.sizes = req.body.sizes || product.sizes;
+    product.colors = req.body.colors || product.colors;
+    product.price = req.body.price || product.price;
+    product.totalQty = req.body.totalQty || product.totalQty;
+    product.brand = req.body.brand || product.brand;
+
+    // Save updated product
+    const updatedProduct = await product.save();
+
+    // Clear the upload directory after all the tasks are done
+    clearUploadDirectory(req);
+
+    // Send response
+    res.json({
+      success: true,
+      message: "Product updated successfully",
+      updatedProduct,
+    });
+  } else {
+    // Clear the upload directory if product not found
+    clearUploadDirectory(req);
+    res.status(404);
+    throw new Error('Product not found');
+  }
+});

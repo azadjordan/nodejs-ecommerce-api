@@ -34,7 +34,6 @@ export const createSingleBrandController = asyncHandler(async (req, res, next) =
   }
 });
 
-
 // @desc    Get all brands
 // @route   GET/api/v1/brands
 //@access   Public
@@ -56,7 +55,6 @@ export const getAllBrandsController = asyncHandler(async (req, res) => {
       brands,
     });
   });
-
 
 // @desc    Get a single brand
 // @route   GET/api/v1/brands

@@ -1,7 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Coupon from "../model/Coupon.js";
 
-
 // @desc    Create new Coupon
 // @route   POST /api/v1/coupons
 // @access  Private/Admin
@@ -62,7 +61,6 @@ export const getAllCouponsController = asyncHandler(async(req, res, next) => {
         })
     }
 });
-
 
 // @desc    Get a single Coupon
 // @route   GET /api/v1/coupons/:id
@@ -144,8 +142,6 @@ export const deleteSingleCouponController = asyncHandler(async (req, res, next) 
         deletedCoupon
     });
 });
-
-
 
 // @desc    Delete all Coupons
 // @route   DELETE /api/v1/coupons/deleteall

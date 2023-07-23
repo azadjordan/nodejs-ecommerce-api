@@ -62,20 +62,22 @@ const ProductSchema = new mongoose.Schema(
       default: 0,
     },
   },
-  { timestamps: true, toJSON: { virtuals: true } }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }  // note the addition of toObject here
 );
-//Virtuals
+
 //qty left
 ProductSchema.virtual("qtyLeft").get(function () {
   const product = this
 
   return product.totalQty - product.totalSold
-})
+});
+
 // Total number of ratings
 ProductSchema.virtual("totalReviews").get(function () {
   const product = this
   return product?.reviews?.length
 });
+
 // Average Rating
 ProductSchema.virtual("averageRating").get(function () {
   let ratingsSum = 0
@@ -86,6 +88,11 @@ ProductSchema.virtual("averageRating").get(function () {
   // calculate average rating
   const averageRating = Number(ratingsSum / product?.reviews?.length).toFixed(1)
   return averageRating
+});
+
+// Images Count
+ProductSchema.virtual("imagesCount").get(function () {
+  return this.images.length;
 });
 
 const Product = mongoose.model("Product", ProductSchema);

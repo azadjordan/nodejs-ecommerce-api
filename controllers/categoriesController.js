@@ -1,54 +1,33 @@
 import asyncHandler from "express-async-handler";
 import Category from "../model/Category.js";
-import fs from 'fs';
 import Image from "../model/Image.js";
-import AWS from "aws-sdk";
 import dotenv from 'dotenv'
+import { uploadImagesToS3 } from "../utils/imageUploader.js";
+import { clearUploadDirectory } from "../utils/clearUploadDirectory.js";
+import s3 from "../config/s3.js";
 dotenv.config()
-
-// Create an instance of the AWS.S3 class
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-});
 
 // @desc    Create new Category
 // @route   POST /api/v1/categories
 // @access  Private/Admin
-export const createSingleCategoryController = asyncHandler(async (req, res) => {
+export const createSingleCategoryController = asyncHandler(async (req, res, next) => { // <-- include 'next' in the arguments
   const { name } = req.body;
 
   // Check if category already exists
   const categoryExists = await Category.findOne({ name });
   if (categoryExists) {
-    throw new Error("Category already exists");
+    clearUploadDirectory(req)
+    return res.status(400).json({
+      success: false,
+      message: "Category already exists",
+    });
   }
 
-  let imageObj = null; 
+  // Upload image to S3 and create Image document
+  let imageObj = null;
   if (req.file) {
-    const fileContent = fs.readFileSync(req.file.path);
-
-    const params = {
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: req.file.filename,
-      Body: fileContent,
-      // Add any additional parameters or ACL settings as per your requirement
-    };
-
-    const uploadResult = await s3.upload(params).promise();
-
-    // Create an Image document and add it to the image object
-    const newImage = new Image({
-      key: uploadResult.Key,
-      bucket: uploadResult.Bucket,
-      location: uploadResult.Location,
-      etag: uploadResult.ETag,
-    });
-
-    await newImage.save();
-    imageObj = {id: newImage._id, url: uploadResult.Location};
-
-    fs.unlinkSync(req.file.path); // Delete the file after successful upload
+    const images = await uploadImagesToS3([req.file], req);
+    imageObj = images[0]; // get the first image from the array
   }
 
   // Create the category with the uploaded image
@@ -66,7 +45,6 @@ export const createSingleCategoryController = asyncHandler(async (req, res) => {
     category,
   });
 });
-
 
 // @desc    Delete a Category
 // @route   DELETE /api/v1/categories/:id
@@ -101,7 +79,6 @@ export const deleteSingleCategoryController = asyncHandler(async (req, res, next
     message: 'Category and associated image deleted successfully',
   });
 });
-
 
 // @desc    Get all categories
 // @route   GET/api/v1/categories
@@ -158,25 +135,35 @@ export const updateSingleCategoryController = asyncHandler(async (req, res, next
 
   // If a new file is uploaded
   if (req.file) {
-    // If an old image exists, delete it from cloudinary
-    if (category.image) {
-      const imagePublicId = category.image.split('/').pop().split('.')[0]; // Extract the image public ID from its URL
-      await cloudinary.uploader.destroy(imagePublicId);
+    // If an old image exists, delete it from S3
+    if (category.image && category.image.id) {
+      const image = await Image.findById(category.image.id);
+
+      if (image) {
+        const params = {
+          Bucket: image.bucket,
+          Key: image.key,
+        };
+
+        await s3.deleteObject(params).promise(); // Delete image from S3
+        await Image.findByIdAndDelete(image._id); // Delete Image document
+      }
     }
 
-    // Upload the new image to Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path);
+    // Upload the new image to S3 and create Image document
+    const images = await uploadImagesToS3([req.file], req);
+    const newImage = images[0]; // get the first image from the array
 
-    // Update the image URL in the category object
-    category.image = result.secure_url;
+    category.image = newImage;
   }
 
-  category.name = name;
+  category.name = name.toLowerCase();
   await category.save();
 
   res.json({
     success: true,
-    data: category
+    message: 'Category updated successfully',
+    data: category,
   });
 });
 

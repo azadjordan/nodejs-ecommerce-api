@@ -34,7 +34,6 @@ export const createSingleColorController = asyncHandler(async (req, res, next) =
   }
 });
 
-
 // @desc    Get all colors
 // @route   GET/api/v1/colors
 //@access   Public
@@ -56,7 +55,6 @@ export const getAllColorsController = asyncHandler(async (req, res) => {
       colors,
     });
   });
-
 
 // @desc    Get a single color
 // @route   GET/api/v1/colors

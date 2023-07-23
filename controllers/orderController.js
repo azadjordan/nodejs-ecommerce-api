@@ -5,14 +5,13 @@ import Product from "../model/Product.js";
 import dotenv from "dotenv";
 dotenv.config();
 
-import Stripe from "stripe";
 import Coupon from "../model/Coupon.js";
+import stripe from "../config/stripe.js";
 
 // @desc    create orders
 // @route   POST /api/v1/orders
 // @access  private
 //stripe instance
-const stripe = new Stripe(process.env.STRIPE_KEY);
 export const createOrderController = asyncHandler(async (req, res) => {
   // get coupon
   const { coupon } = req?.query;
@@ -179,7 +178,6 @@ export const deleteAllOrdersController = asyncHandler(async (req, res) => {
     message: "All orders have been deleted",
   });
 });
-
 
 // @desc  Get sales sum of orders
 // @route GET /api/v1/orders/sales/sum

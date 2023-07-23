@@ -17,7 +17,7 @@ productsRouter.post("/", isLoggedIn, isAdmin, fileParser.array('files'), createS
 productsRouter.get("/", getAllProductsController);
 productsRouter.delete("/deleteall", isLoggedIn, isAdmin, deleteAllProductsController);
 productsRouter.get("/:id", getSingleProductController);
-productsRouter.put("/:id", isLoggedIn, isAdmin, updateSingleProductController);
+productsRouter.put("/:id/update", isLoggedIn, isAdmin, fileParser.array('files'), updateSingleProductController);
 productsRouter.delete("/delete/:id", isLoggedIn, isAdmin, deleteSingleProductController);
 
 export default productsRouter;

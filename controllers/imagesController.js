@@ -57,4 +57,55 @@ export const deleteAllImagesController = asyncHandler(async (req, res) => {
 });
   
 
+// @desc    Delete a single image from a product
+// @route   DELETE /api/v1/images/:imageId/product/:productId
+// @access  Private/Admin
+export const deleteSingleImageController = asyncHandler(async(req, res, next)=>{
+  const { imageId, productId } = req.params;
+
+  // Fetch the image and product from the database
+  const image = await Image.findById(imageId);
+  const product = await Product.findById(productId);
+
+  if (!image) {
+    return res.status(404).json({
+      success: false,
+      message: "Image not found",
+    });
+  }
+
+  if (!product) {
+    return res.status(404).json({
+      success: false,
+      message: "Product not found",
+    });
+  }
+
+  // Deleting the image from the S3 bucket
+  const params = {
+    Bucket: image.bucket,
+    Key: image.key,  // key is the filename in the S3 bucket
+  };
+
+  try {
+    // Delete the image from the S3 bucket
+    await s3.deleteObject(params).promise();
+
+    // If successful, delete the Image record from the database
+    await Image.findByIdAndDelete(imageId);
+
+    // Then, remove the Image from the Product
+    product.images = product.images.filter(img => img.id.toString() !== imageId.toString());
+    await product.save();
+
+    res.json({
+      success: true,
+      message: 'Image and its reference in the product deleted successfully'
+    });
+  } catch (err) {
+    // An error occurred during the image deletion process, so throw an error
+    return next(err);
+  }
+});
+
 
